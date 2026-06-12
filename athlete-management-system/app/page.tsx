@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Sidebar } from "@/components/sidebar"
 import { TopBar } from "@/components/top-bar"
 import { Dashboard } from "@/components/dashboard/dashboard"
+import { AthleteDashboard } from "@/components/dashboard/athlete-dashboard"
 import { MedicalModule } from "@/components/medical/medical-module"
 import { AthleteRegistry } from "@/components/athletes/athlete-registry"
 import { TrainingModule } from "@/components/training/training-module"
@@ -14,6 +15,7 @@ import { AnalyticsModule } from "@/components/analytics/analytics-module"
 import { AiCopilotPanel } from "@/components/ai-copilot-panel"
 import { Bot } from "lucide-react"
 import type { UserRole } from "@/lib/roles"
+import { ROLE_VISIBLE_MODULES, DEFAULT_MODULE_BY_ROLE } from "@/lib/roles"
 import { INITIAL_INJURIES, type PersistedInjury } from "@/components/medical/data"
 import { INITIAL_ATHLETES, type Athlete } from "@/components/athletes/data"
 import {
@@ -24,12 +26,8 @@ import {
 import { DEFAULT_HIERARCHY_SCOPE, type HierarchyScope } from "@/lib/hierarchy-scope"
 import type { CopilotAction } from "@/lib/copilot-context"
 
-const defaultModuleByRole: Record<UserRole, string> = {
-  "Federation Admin": "Dashboard",
-  Coach: "Training",
-  Physiotherapist: "Medical",
-  "Sports Scientist": "Sports Science",
-}
+// Use the canonical role maps from lib/roles
+const defaultModuleByRole = DEFAULT_MODULE_BY_ROLE
 
 function ModuleSkeleton() {
   return (
@@ -80,6 +78,18 @@ export default function Home() {
   const [loadingModule, setLoadingModule] = useState(false)
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [hierarchyScope, setHierarchyScope] = useState<HierarchyScope>(DEFAULT_HIERARCHY_SCOPE)
+
+  // Automatically scope Coach dashboard to Sprint Squad, Fed Admin to full federation
+  const effectiveScope = useMemo<HierarchyScope>(() => {
+    if (role === "Coach") {
+      return {
+        ...DEFAULT_HIERARCHY_SCOPE,
+        discipline: "Athletics",
+        squad: "Sprint Squad",
+      }
+    }
+    return hierarchyScope
+  }, [role, hierarchyScope])
   const [copilotProfileAthleteId, setCopilotProfileAthleteId] = useState<string | null>(null)
   const [navProfileAthleteId, setNavProfileAthleteId] = useState<string | null>(null)
   const [medicalNav, setMedicalNav] = useState<{ athleteId?: string; tab?: string } | null>(null)
@@ -90,23 +100,7 @@ export default function Home() {
     [athletes],
   )
 
-  const visibleModules = useMemo(() => {
-    if (role === "Federation Admin") {
-      return [
-        "Dashboard",
-        "Athletes",
-        "Training",
-        "Medical",
-        "Sports Science",
-        "Nutrition",
-        "Assessments",
-        "Analytics",
-      ]
-    }
-    if (role === "Coach") return ["Dashboard", "Training", "Athletes", "Medical", "Assessments"]
-    if (role === "Physiotherapist") return ["Medical", "Dashboard", "Athletes", "Sports Science", "Assessments", "Training"]
-    return ["Sports Science", "Dashboard", "Athletes", "Training", "Medical", "Assessments", "Analytics"]
-  }, [role])
+  const visibleModules = useMemo(() => ROLE_VISIBLE_MODULES[role], [role])
 
   useEffect(() => {
     if (!visibleModules.includes(activeModule)) {
@@ -165,14 +159,24 @@ export default function Home() {
   function renderModule() {
     if (loadingModule) return <ModuleSkeleton />
     if (activeModule === "Dashboard") {
+      // Athlete role gets their own personalised dashboard
+      if (role === "Athlete") {
+        return (
+          <AthleteDashboard
+            sessions={sessions}
+            workloads={workloads}
+            onWorkloadsChange={setWorkloads}
+          />
+        )
+      }
       return (
         <Dashboard
           athletes={athletes}
           injuries={injuries}
           sessions={sessions}
           workloads={workloads}
-          hierarchyScope={hierarchyScope}
-          onHierarchyScopeChange={setHierarchyScope}
+          hierarchyScope={effectiveScope}
+          onHierarchyScopeChange={role === "Coach" ? () => {} : setHierarchyScope}
           onNavigate={handleModuleSelect}
         />
       )
@@ -259,15 +263,17 @@ export default function Home() {
         {renderModule()}
       </main>
 
-      {/* AI Copilot FAB */}
-      <button
-        type="button"
-        onClick={() => setCopilotOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-[#1A56DB] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#1A56DB]/30 transition-all hover:bg-[#1A56DB]/90 hover:shadow-xl"
-      >
-        <Bot className="h-5 w-5" />
-        AI Copilot
-      </button>
+      {/* AI Copilot FAB — hidden for Athlete role */}
+      {role !== "Athlete" && (
+        <button
+          type="button"
+          onClick={() => setCopilotOpen(true)}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-full bg-[#1A56DB] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#1A56DB]/30 transition-all hover:bg-[#1A56DB]/90 hover:shadow-xl"
+        >
+          <Bot className="h-5 w-5" />
+          AI Copilot
+        </button>
+      )}
 
       <AiCopilotPanel
         open={copilotOpen}

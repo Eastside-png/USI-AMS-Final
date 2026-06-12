@@ -10,7 +10,7 @@ import { ReportInjuryModal } from "./report-injury-modal"
 import { WellnessTab } from "./wellness-tab"
 import { RehabTrackerTab } from "./rehab-tracker-tab"
 import {
-  ATHLETES,
+  ATHLETES as MEDICAL_ATHLETES,
   PHASE_CRITERIA,
   REHAB_PHASES,
   REGION_LABELS,
@@ -24,6 +24,7 @@ import {
   type RegionId,
   type RegionStatus,
 } from "./data"
+import { INITIAL_ATHLETES as REGISTRY_ATHLETES } from "@/components/athletes/data"
 
 const TABS = [
   "Body Map",
@@ -37,7 +38,7 @@ type Tab = (typeof TABS)[number]
 
 // Default selected region per athlete: first active injury, else first recorded, else null
 function defaultRegion(athleteId: string): RegionId | null {
-  const athlete = ATHLETES.find((a) => a.id === athleteId)
+  const athlete = MEDICAL_ATHLETES.find((a) => a.id === athleteId)
   if (!athlete) return null
   const entries = Object.entries(athlete.regions) as [RegionId, RegionStatus][]
   const active = entries.find(([, s]) => s === "active")
@@ -87,7 +88,7 @@ function AllInjuriesOverview({
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {injuries.map((injury) => {
-          const athlete = ATHLETES.find((a) => a.id === injury.athleteId)
+          const athlete = MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)
           const regionColor =
             injuryRegionStatus(injury) === "active"
               ? "border-[#FCA5A5] bg-[#FFF5F5]"
@@ -399,7 +400,7 @@ export function MedicalModule({
   }, [initialSelectedId, initialTab, onMedicalNavConsumed])
 
   const baseAthlete = useMemo(
-    () => ATHLETES.find((a) => a.id === selectedId) ?? ATHLETES[0],
+    () => MEDICAL_ATHLETES.find((a) => a.id === selectedId) ?? MEDICAL_ATHLETES[0],
     [selectedId],
   )
 
@@ -589,7 +590,7 @@ export function MedicalModule({
       )
       if (remainingActive.length === 0) {
         setSuccessMessage(
-          `RTP approved — ${ATHLETES.find((a) => a.id === injury.athleteId)?.name ?? "Athlete"} cleared to Active status`,
+          `RTP approved — ${MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)?.name ?? "Athlete"} cleared to Active status`,
         )
       } else {
         setSuccessMessage("RTP approved successfully")
@@ -629,37 +630,145 @@ export function MedicalModule({
   }
 
   if (role === "Coach") {
+    // Scope to sprint squad athletes only — use full registry athletes (with avatarColor, initials, etc.)
+    const coachAthleteIds = new Set(
+      REGISTRY_ATHLETES.filter((a) => a.squad === "National Sprint Squad").map((a) => a.id),
+    )
+    const coachInjuries = injuries.filter((inj) => coachAthleteIds.has(inj.athleteId))
+
+    const available = REGISTRY_ATHLETES.filter(
+      (a) =>
+        coachAthleteIds.has(a.id) &&
+        !coachInjuries.some((inj) => inj.athleteId === a.id && inj.status !== "Resolved"),
+    ).length
+    const modified = coachInjuries.filter(
+      (inj) => inj.status === "Improving",
+    ).length
+    const unavailable = coachInjuries.filter(
+      (inj) => inj.status === "Active",
+    ).length
+
+    // Group active/improving injuries by athlete
+    const activeInjuriesByAthlete = REGISTRY_ATHLETES.filter((a) => coachAthleteIds.has(a.id))
+      .map((a) => {
+        const athleteInjuries = coachInjuries.filter(
+          (inj) => inj.athleteId === a.id && inj.status !== "Resolved",
+        )
+        return { athlete: a, injuries: athleteInjuries }
+      })
+      .filter((item) => item.injuries.length > 0)
+
     return (
-      <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center p-6">
-        <div className="max-w-lg rounded-xl border border-[#E5E7EB] bg-white p-8 text-center shadow-sm">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#EFF6FF]">
-            <ShieldCheck className="h-6 w-6 text-[#1A56DB]" />
+      <div className="flex flex-col gap-5 p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">Medical Overview</h1>
+            <p className="mt-0.5 text-sm text-[#6B7280]">
+              Athlete availability for your squad — clinical details are restricted to medical staff
+            </p>
           </div>
-          <h1 className="text-xl font-semibold text-[#0F172A]">Medical Summary Access</h1>
-          <p className="mt-2 text-sm leading-6 text-[#6B7280]">
-            Coaches can see availability, return-to-training status, and clearance notes.
-            Detailed injury records remain visible to medical staff.
-          </p>
-          <div className="mt-5 grid grid-cols-3 gap-3 text-left">
-            {[
-              { label: "Available", value: "18" },
-              { label: "Modified", value: "3" },
-              { label: "Unavailable", value: "2" },
-            ].map((item) => (
-              <div key={item.label} className="rounded-lg bg-[#F8FAFC] p-3">
-                <p className="text-xs text-[#6B7280]">{item.label}</p>
-                <p className="text-2xl font-bold text-[#0F172A]">{item.value}</p>
-              </div>
-            ))}
+          <div className="flex items-center gap-2 rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2">
+            <ShieldCheck className="h-4 w-4 text-[#1A56DB]" />
+            <span className="text-xs font-semibold text-[#1A56DB]">Coach View</span>
           </div>
-          <button
-            type="button"
-            onClick={() => onNavigate?.("Athletes")}
-            className="mt-5 rounded-lg bg-[#1A56DB] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1A56DB]/90"
-          >
-            Open athlete availability
-          </button>
         </div>
+
+        {/* Availability summary */}
+        <div className="grid grid-cols-3 gap-4">
+          {[
+            { label: "Available to Train", value: available, color: "text-[#15803D]", bg: "bg-[#DCFCE7]", border: "border-[#BBF7D0]" },
+            { label: "Modified Training", value: modified, color: "text-[#92400E]", bg: "bg-[#FEF9C3]", border: "border-[#FDE68A]" },
+            { label: "Unavailable", value: unavailable, color: "text-[#B91C1C]", bg: "bg-[#FEE2E2]", border: "border-[#FECACA]" },
+          ].map((s) => (
+            <div key={s.label} className={`flex flex-col gap-1 rounded-xl border p-4 ${s.bg} ${s.border}`}>
+              <span className={`text-3xl font-bold ${s.color}`}>{s.value}</span>
+              <span className="text-sm font-medium text-[#374151]">{s.label}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Athlete injury status list */}
+        {activeInjuriesByAthlete.length > 0 ? (
+          <div className="rounded-xl border border-[#E5E7EB] bg-white shadow-sm">
+            <div className="border-b border-[#F1F5F9] px-5 py-3">
+              <h2 className="text-sm font-semibold text-[#0F172A]">
+                Active Injury Status &amp; Restrictions
+              </h2>
+              <p className="mt-0.5 text-xs text-[#6B7280]">
+                Injury type, affected area, current status, and training restrictions visible to coaching staff
+              </p>
+            </div>
+            <div className="divide-y divide-[#F1F5F9]">
+              {activeInjuriesByAthlete.map(({ athlete, injuries: athlInjs }) => (
+                <div key={athlete.id} className="px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+                      style={{ backgroundColor: athlete.avatarColor }}
+                    >
+                      {athlete.initials}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#0F172A]">{athlete.firstName} {athlete.lastName}</p>
+                      <p className="text-xs text-[#6B7280]">{athlete.discipline}</p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    {athlInjs.map((inj) => {
+                      const isActive = inj.status === "Active"
+                      const statusColor = isActive
+                        ? "bg-[#FEE2E2] text-[#B91C1C] border-[#FECACA]"
+                        : "bg-[#FEF9C3] text-[#92400E] border-[#FDE68A]"
+                      const restriction = isActive
+                        ? "No training — clearance required from medical staff before return"
+                        : "Modified training only — avoid high-impact activities on affected area"
+                      return (
+                        <div
+                          key={inj.id}
+                          className={`rounded-lg border px-4 py-3 ${isActive ? "border-[#FECACA] bg-[#FFF5F5]" : "border-[#FDE68A] bg-[#FFFBEB]"}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-[#0F172A]">{inj.injuryType}</p>
+                              <p className="mt-0.5 text-xs text-[#6B7280]">
+                                {REGION_LABELS[inj.bodyRegion]} · {inj.view === "front" ? "Anterior" : "Posterior"}
+                              </p>
+                            </div>
+                            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${statusColor}`}>
+                              {inj.status}
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-start gap-1.5 text-xs text-[#374151]">
+                            <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#6B7280]" />
+                            <span><span className="font-semibold">Restriction:</span> {restriction}</span>
+                          </div>
+                          <p className="mt-1.5 text-xs text-[#9CA3AF]">
+                            Onset {new Date(inj.dateOfOnset).toLocaleDateString("en-GB")} · Rehab Phase {inj.rehabPhase}/5
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-[200px] items-center justify-center rounded-xl border border-[#E5E7EB] bg-white">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#DCFCE7]">
+                <ShieldCheck className="h-6 w-6 text-[#15803D]" />
+              </div>
+              <p className="font-semibold text-[#0F172A]">All athletes available</p>
+              <p className="text-sm text-[#6B7280]">No active injury restrictions for your squad</p>
+            </div>
+          </div>
+        )}
+
+        <p className="text-xs text-[#9CA3AF]">
+          Clinical notes, detailed medical records, and treatment plans are restricted to Physiotherapists and Federation Admin.
+        </p>
       </div>
     )
   }
@@ -714,7 +823,7 @@ export function MedicalModule({
               {injuries
                 .filter((injury) => injury.rtpApprovalStatus === "Pending")
                 .map((injury) => {
-                  const queueAthlete = ATHLETES.find((a) => a.id === injury.athleteId)
+                  const queueAthlete = MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)
                   const completedPhases = injury.rehabPhase - 1 + (phaseCriteriaComplete(injury) ? 1 : 0)
                   return (
                     <div key={injury.id} className="rounded-lg bg-white p-4">
@@ -789,7 +898,7 @@ export function MedicalModule({
 
       {/* Athlete selector */}
       <AthleteSelector
-        athletes={ATHLETES}
+          athletes={MEDICAL_ATHLETES}
         selectedId={selectedId}
         onSelect={handleSelectAthlete}
       />
@@ -869,7 +978,7 @@ export function MedicalModule({
       {activeTab === "Injury Log" && (
         <div className="grid gap-4">
           {injuries.map((injury) => {
-            const injuryAthlete = ATHLETES.find((a) => a.id === injury.athleteId)
+            const injuryAthlete = MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)
             return (
               <InjuryCard
                 key={injury.id}
@@ -903,7 +1012,7 @@ export function MedicalModule({
           {injuries
             .filter((injury) => injury.rehabPhase === 5 || injury.rtpApprovalStatus)
             .map((injury) => {
-              const injuryAthlete = ATHLETES.find((a) => a.id === injury.athleteId)
+              const injuryAthlete = MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)
               return (
                 <InjuryCard
                   key={injury.id}

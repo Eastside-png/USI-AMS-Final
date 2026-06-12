@@ -434,6 +434,7 @@ export function AthleteRegistry({
       a.sport.toLowerCase().includes(q) ||
       a.squad.toLowerCase().includes(q)
     const matchSport = sport === "All Sports" || a.sport === sport
+    // Coach: scoped to their squad only
     const roleSquad = role === "Coach" ? a.squad === "National Sprint Squad" : true
     const matchSquad = squad === "All Squads" || a.squad === squad
     const matchStatus = status === "All" || a.status === status
@@ -441,14 +442,20 @@ export function AthleteRegistry({
     return roleSquad && matchSearch && matchSport && matchSquad && matchStatus && matchNat
   })
 
+  // For stats, scope the base set by role
+  const baseForStats =
+    role === "Coach"
+      ? athletesWithMedicalStatus.filter((a) => a.squad === "National Sprint Squad")
+      : athletesWithMedicalStatus
+
   const pendingAthletes = athletes.filter((a) => a.status === "Pending")
 
   const stats = {
-    total: athletesWithMedicalStatus.length,
-    active: athletesWithMedicalStatus.filter((a) => a.status === "Active").length,
-    injured: athletesWithMedicalStatus.filter((a) => a.status === "Injured").length,
+    total: baseForStats.length,
+    active: baseForStats.filter((a) => a.status === "Active").length,
+    injured: baseForStats.filter((a) => a.status === "Injured").length,
     pending: pendingAthletes.length,
-    suspended: athletesWithMedicalStatus.filter((a) => a.status === "Suspended").length,
+    suspended: baseForStats.filter((a) => a.status === "Suspended").length,
   }
 
   function updateAthlete(id: string, updater: (a: Athlete) => Athlete) {
@@ -504,7 +511,14 @@ export function AthleteRegistry({
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Athlete Registry</h1>
           {role === "Coach" && (
-            <p className="text-sm text-muted-foreground">Scoped to your National Sprint Squad</p>
+            <p className="mt-0.5 text-sm text-[#6B7280]">
+              Scoped to your squad: National Sprint Squad
+            </p>
+          )}
+          {role === "Federation Admin" && (
+            <p className="mt-0.5 text-sm text-[#6B7280]">
+              All athletes across all squads and disciplines
+            </p>
           )}
         </div>
         <div className="flex items-center gap-2">
