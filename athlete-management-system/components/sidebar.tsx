@@ -59,7 +59,7 @@ export function Sidebar({
   // For Athlete role, show a simplified nav with just their personal modules
   const isAthlete = role === "Athlete"
 
-  const items = isAthlete
+  const items: NavItem[] = isAthlete
     ? [{ label: "Dashboard", icon: LayoutDashboard }]
     : navItems.filter(
         (item) => item.label === "AI Copilot" || visibleModules.includes(item.label),

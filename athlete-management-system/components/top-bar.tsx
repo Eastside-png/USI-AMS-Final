@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { roles, type UserRole } from "@/lib/roles"
+import { ATHLETES } from "@/components/athletes/data"
+import { ATHLETE_PERSONA_ID } from "@/lib/roles"
 
 const notifications = [
   {
@@ -41,6 +43,25 @@ export function TopBar({
 }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(3)
+
+  // Derive avatar from role — Athlete uses their own persona
+  const athletePersona = ATHLETES.find((a) => a.id === ATHLETE_PERSONA_ID)
+  const avatarInitials =
+    role === "Athlete" ? (athletePersona?.initials ?? "AT")
+    : role === "Federation Admin" ? "FA"
+    : role === "Coach" ? "RK"
+    : role === "Physiotherapist" ? "MN"
+    : "SS"
+  const avatarColor =
+    role === "Athlete" ? (athletePersona?.avatarColor ?? "#0891B2")
+    : role === "Federation Admin" ? "#1A56DB"
+    : role === "Coach" ? "#16A34A"
+    : role === "Physiotherapist" ? "#D97706"
+    : "#7C3AED"
+  const avatarLabel =
+    role === "Athlete"
+      ? `${athletePersona?.firstName ?? "Athlete"} ${athletePersona?.lastName ?? ""}`
+      : role
 
   return (
     <header className="fixed inset-x-0 left-60 top-0 z-20 flex h-16 items-center gap-4 border-b border-[#E5E7EB] bg-white px-6">
@@ -140,8 +161,12 @@ export function TopBar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#1A56DB] text-sm font-semibold text-white">
-          KT
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+          style={{ backgroundColor: avatarColor }}
+          title={avatarLabel}
+        >
+          {avatarInitials}
         </div>
       </div>
     </header>

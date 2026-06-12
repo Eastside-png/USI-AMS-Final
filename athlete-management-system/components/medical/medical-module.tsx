@@ -10,7 +10,7 @@ import { ReportInjuryModal } from "./report-injury-modal"
 import { WellnessTab } from "./wellness-tab"
 import { RehabTrackerTab } from "./rehab-tracker-tab"
 import {
-  ATHLETES,
+  ATHLETES as MEDICAL_ATHLETES,
   PHASE_CRITERIA,
   REHAB_PHASES,
   REGION_LABELS,
@@ -24,6 +24,7 @@ import {
   type RegionId,
   type RegionStatus,
 } from "./data"
+import { INITIAL_ATHLETES as REGISTRY_ATHLETES } from "@/components/athletes/data"
 
 const TABS = [
   "Body Map",
@@ -37,7 +38,7 @@ type Tab = (typeof TABS)[number]
 
 // Default selected region per athlete: first active injury, else first recorded, else null
 function defaultRegion(athleteId: string): RegionId | null {
-  const athlete = ATHLETES.find((a) => a.id === athleteId)
+  const athlete = MEDICAL_ATHLETES.find((a) => a.id === athleteId)
   if (!athlete) return null
   const entries = Object.entries(athlete.regions) as [RegionId, RegionStatus][]
   const active = entries.find(([, s]) => s === "active")
@@ -87,7 +88,7 @@ function AllInjuriesOverview({
       </div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {injuries.map((injury) => {
-          const athlete = ATHLETES.find((a) => a.id === injury.athleteId)
+          const athlete = MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)
           const regionColor =
             injuryRegionStatus(injury) === "active"
               ? "border-[#FCA5A5] bg-[#FFF5F5]"
@@ -399,7 +400,7 @@ export function MedicalModule({
   }, [initialSelectedId, initialTab, onMedicalNavConsumed])
 
   const baseAthlete = useMemo(
-    () => ATHLETES.find((a) => a.id === selectedId) ?? ATHLETES[0],
+    () => MEDICAL_ATHLETES.find((a) => a.id === selectedId) ?? MEDICAL_ATHLETES[0],
     [selectedId],
   )
 
@@ -589,7 +590,7 @@ export function MedicalModule({
       )
       if (remainingActive.length === 0) {
         setSuccessMessage(
-          `RTP approved — ${ATHLETES.find((a) => a.id === injury.athleteId)?.name ?? "Athlete"} cleared to Active status`,
+          `RTP approved — ${MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)?.name ?? "Athlete"} cleared to Active status`,
         )
       } else {
         setSuccessMessage("RTP approved successfully")
@@ -629,13 +630,13 @@ export function MedicalModule({
   }
 
   if (role === "Coach") {
-    // Scope to sprint squad athletes only
+    // Scope to sprint squad athletes only — use full registry athletes (with avatarColor, initials, etc.)
     const coachAthleteIds = new Set(
-      ATHLETES.filter((a) => a.squad === "National Sprint Squad").map((a) => a.id),
+      REGISTRY_ATHLETES.filter((a) => a.squad === "National Sprint Squad").map((a) => a.id),
     )
     const coachInjuries = injuries.filter((inj) => coachAthleteIds.has(inj.athleteId))
 
-    const available = ATHLETES.filter(
+    const available = REGISTRY_ATHLETES.filter(
       (a) =>
         coachAthleteIds.has(a.id) &&
         !coachInjuries.some((inj) => inj.athleteId === a.id && inj.status !== "Resolved"),
@@ -648,7 +649,7 @@ export function MedicalModule({
     ).length
 
     // Group active/improving injuries by athlete
-    const activeInjuriesByAthlete = ATHLETES.filter((a) => coachAthleteIds.has(a.id))
+    const activeInjuriesByAthlete = REGISTRY_ATHLETES.filter((a) => coachAthleteIds.has(a.id))
       .map((a) => {
         const athleteInjuries = coachInjuries.filter(
           (inj) => inj.athleteId === a.id && inj.status !== "Resolved",
@@ -822,7 +823,7 @@ export function MedicalModule({
               {injuries
                 .filter((injury) => injury.rtpApprovalStatus === "Pending")
                 .map((injury) => {
-                  const queueAthlete = ATHLETES.find((a) => a.id === injury.athleteId)
+                  const queueAthlete = MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)
                   const completedPhases = injury.rehabPhase - 1 + (phaseCriteriaComplete(injury) ? 1 : 0)
                   return (
                     <div key={injury.id} className="rounded-lg bg-white p-4">
@@ -897,7 +898,7 @@ export function MedicalModule({
 
       {/* Athlete selector */}
       <AthleteSelector
-        athletes={ATHLETES}
+          athletes={MEDICAL_ATHLETES}
         selectedId={selectedId}
         onSelect={handleSelectAthlete}
       />
@@ -977,7 +978,7 @@ export function MedicalModule({
       {activeTab === "Injury Log" && (
         <div className="grid gap-4">
           {injuries.map((injury) => {
-            const injuryAthlete = ATHLETES.find((a) => a.id === injury.athleteId)
+            const injuryAthlete = MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)
             return (
               <InjuryCard
                 key={injury.id}
@@ -1011,7 +1012,7 @@ export function MedicalModule({
           {injuries
             .filter((injury) => injury.rehabPhase === 5 || injury.rtpApprovalStatus)
             .map((injury) => {
-              const injuryAthlete = ATHLETES.find((a) => a.id === injury.athleteId)
+              const injuryAthlete = MEDICAL_ATHLETES.find((a) => a.id === injury.athleteId)
               return (
                 <InjuryCard
                   key={injury.id}
