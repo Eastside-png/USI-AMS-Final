@@ -10,6 +10,7 @@ import {
   ClipboardList,
   BarChart3,
   Bot,
+  UserCircle2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -32,6 +33,14 @@ const navItems: NavItem[] = [
   { label: "AI Copilot", icon: Bot, highlight: true },
 ]
 
+const ROLE_ACCENT: Record<string, string> = {
+  "Federation Admin": "#1A56DB",
+  Coach: "#16A34A",
+  Physiotherapist: "#D97706",
+  "Sports Scientist": "#7C3AED",
+  Athlete: "#0891B2",
+}
+
 export function Sidebar({
   active,
   onSelect,
@@ -45,26 +54,49 @@ export function Sidebar({
   visibleModules: string[]
   pendingAthleteCount?: number
 }) {
-  const items = navItems.filter(
-    (item) => item.label === "AI Copilot" || visibleModules.includes(item.label),
-  )
+  const accent = ROLE_ACCENT[role] ?? "#1A56DB"
+
+  // For Athlete role, show a simplified nav with just their personal modules
+  const isAthlete = role === "Athlete"
+
+  const items = isAthlete
+    ? [{ label: "Dashboard", icon: LayoutDashboard }]
+    : navItems.filter(
+        (item) => item.label === "AI Copilot" || visibleModules.includes(item.label),
+      )
+
+  // Fed Admin gets an approvals badge on the Athletes nav item
+  const showApprovalsBadge = role === "Federation Admin" && pendingAthleteCount > 0
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col bg-[#0F172A]">
       <div className="flex h-16 items-center gap-2 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#3B82F6] text-sm font-bold text-white">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-md text-sm font-bold text-white"
+          style={{ backgroundColor: accent }}
+        >
           USI
         </div>
         <div className="flex flex-col leading-none">
-          <span className="text-base font-bold text-[#3B82F6]">USI</span>
+          <span className="text-base font-bold" style={{ color: accent }}>USI</span>
           <span className="text-xs font-medium text-slate-400">AMS</span>
         </div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+      {/* Role badge strip */}
+      <div className="mx-3 mb-1 flex items-center gap-2 rounded-md px-3 py-1.5" style={{ backgroundColor: `${accent}18` }}>
+        <UserCircle2 className="h-3.5 w-3.5 shrink-0" style={{ color: accent }} />
+        <span className="truncate text-xs font-semibold" style={{ color: accent }}>{role}</span>
+      </div>
+
+      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-2">
         {items.map((item) => {
           const isActive = item.label === active
           const Icon = item.icon
+          const hasApprovalsBadge = item.label === "Athletes" && showApprovalsBadge
+          // Medical badge: only for non-coach, non-athlete roles
+          const showMedicalBadge = item.badge && role !== "Coach" && role !== "Athlete"
+
           return (
             <button
               key={item.label}
@@ -73,20 +105,24 @@ export function Sidebar({
               className={cn(
                 "group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-[#1A56DB]/15 text-white"
+                  ? "text-white"
                   : "text-[#94A3B8] hover:bg-white/5 hover:text-slate-200",
                 !isActive && item.highlight && "text-[#3B82F6] hover:text-[#3B82F6]",
               )}
+              style={isActive ? { backgroundColor: `${accent}25` } : undefined}
             >
               {isActive && (
-                <span className="absolute inset-y-1 left-0 w-[3px] rounded-r bg-[#1A56DB]" />
+                <span
+                  className="absolute inset-y-1 left-0 w-[3px] rounded-r"
+                  style={{ backgroundColor: accent }}
+                />
               )}
               <span className="relative">
                 <Icon className="h-5 w-5 shrink-0" />
-                {item.badge && (
+                {showMedicalBadge && (
                   <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[#0F172A]" />
                 )}
-                {item.label === "Athletes" && pendingAthleteCount > 0 && (
+                {hasApprovalsBadge && (
                   <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#F59E0B] px-1 text-[10px] font-bold text-white ring-2 ring-[#0F172A]">
                     {pendingAthleteCount}
                   </span>
@@ -94,7 +130,7 @@ export function Sidebar({
               </span>
               <span className="flex flex-1 items-center justify-between">
                 {item.label}
-                {item.label === "Athletes" && pendingAthleteCount > 0 && (
+                {hasApprovalsBadge && (
                   <span className="rounded-full bg-[#F59E0B]/20 px-2 py-0.5 text-[10px] font-semibold text-[#F59E0B]">
                     {pendingAthleteCount} pending
                   </span>
